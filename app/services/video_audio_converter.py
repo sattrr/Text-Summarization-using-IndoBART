@@ -1,4 +1,3 @@
-# app/services/video_audio_converter.py
 from moviepy import *
 from pathlib import Path
 

@@ -2,6 +2,17 @@ import whisper
 import librosa
 import json
 from pathlib import Path
+from pydub import AudioSegment
+
+def convert_to_wav(input_path: Path, output_path: Path):
+    try:
+        audio = AudioSegment.from_file(input_path)
+        audio.export(output_path, format="wav")
+        print(f"Converted {input_path.name} to {output_path.name}")
+        return output_path
+    except Exception as e:
+        print(f"Error converting {input_path.name} to wav: {e}")
+        return None
 
 def transcribe_audio(audio_path, model):
     try:
@@ -16,17 +27,28 @@ def transcribe_audio(audio_path, model):
 def main():
     AUDIO_DIR = Path("data/uploads")
     TEXT_DIR = Path("data/text")
+    TEMP_DIR = Path("data/temp")
 
     TEXT_DIR.mkdir(parents=True, exist_ok=True)
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
     model = whisper.load_model("base")
 
     allowed_exts = ('.wav', '.mp3', '.aac', '.m4a')
-
     audio_files = [f for f in AUDIO_DIR.iterdir() if f.suffix.lower() in allowed_exts]
 
     for audio_file in audio_files:
-        transcription = transcribe_audio(audio_file, model)
+        if audio_file.suffix.lower() != '.wav':
+            wav_path = TEMP_DIR / f"{audio_file.stem}.wav"
+            audio_path = convert_to_wav(audio_file, wav_path)
+        else:
+            audio_path = audio_file
+
+        if not audio_path or not audio_path.exists():
+            print(f"Skipping {audio_file.name}, conversion failed.")
+            continue
+
+        transcription = transcribe_audio(audio_path, model)
 
         if transcription:
             transcript_data = {"text": transcription}

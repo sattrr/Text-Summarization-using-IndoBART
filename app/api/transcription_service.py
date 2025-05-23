@@ -1,19 +1,22 @@
+from pathlib import Path
+from fastapi import APIRouter, File, UploadFile, HTTPException
 import shutil
 import uuid
+import os
 import json
 import whisper
-from fastapi import APIRouter, File, UploadFile, HTTPException
-from pathlib import Path
+from app.services.speech_to_text import transcribe_audio, convert_to_wav
 from app.services.video_audio_converter import extract_audio_from_video
-from app.services.speech_to_text import transcribe_audio
 
 router = APIRouter()
 
 UPLOAD_DIR = Path("data/uploads")
 TEXT_DIR = Path("data/text")
-    
-TEXT_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR = Path("data/temp")
+
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TEXT_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 SUPPORTED_AUDIO_VIDEO_TYPES = {".mp3", ".wav", ".aac", ".m4a", ".mp4", ".mkv", ".mov"}
 VIDEO_TYPES = {".mp4", ".mkv", ".mov"}
@@ -39,19 +42,36 @@ async def transcribe_file(file: UploadFile = File(...)):
     else:
         audio_path = input_path
 
+    if audio_path.suffix.lower() != '.wav':
+        wav_path = TEMP_DIR / f"{uid}.wav"
+        converted_path = convert_to_wav(audio_path, wav_path)
+        if not converted_path:
+            raise HTTPException(status_code=500, detail="Audio conversion failed")
+        audio_path = converted_path
+
     transcription = transcribe_audio(audio_path, model)
     if transcription is None:
         raise HTTPException(status_code=500, detail="Transcription failed")
+
+    # Simpan transkrip ke file per-uid
+    transcript_file = TEXT_DIR / f"transcript_{uid}.json"
+    with open(transcript_file, 'w', encoding='utf-8') as f:
+        json.dump({"text": transcription}, f, ensure_ascii=False, indent=4)
 
     return {"text": transcription}
 
 @router.get("/transcribe/latest")
 def get_latest_transcription():
-    transcript_file = TEXT_DIR / 'transcripts.json'
-    if not transcript_file.exists():
-        raise HTTPException(status_code=404, detail="Transcript file not found")
+    transcript_files = sorted(
+        [f for f in TEXT_DIR.iterdir() if f.name.startswith("transcript_") and f.suffix == ".json"],
+        key=os.path.getmtime,
+        reverse=True
+    )
+    if not transcript_files:
+        raise HTTPException(status_code=404, detail="No transcription found")
 
-    with open(transcript_file, 'r', encoding='utf-8') as f:
+    latest_file = transcript_files[0]
+    with open(latest_file, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    return {"text": data}
+    return {"text": data.get("text", "")}
