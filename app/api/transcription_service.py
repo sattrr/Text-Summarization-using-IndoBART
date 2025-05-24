@@ -23,6 +23,29 @@ VIDEO_TYPES = {".mp4", ".mkv", ".mov"}
 
 model = whisper.load_model("base")
 
+from pathlib import Path
+from fastapi import APIRouter, File, UploadFile, HTTPException
+import shutil, uuid, json
+import whisper
+from app.services.speech_to_text import transcribe_audio, convert_to_wav
+from app.services.video_audio_converter import extract_audio_from_video
+from app.services.summarizer import summarize_text  # ✅ import summarizer
+
+router = APIRouter()
+
+UPLOAD_DIR = Path("data/uploads")
+TEXT_DIR = Path("data/text")
+TEMP_DIR = Path("data/temp")
+
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+TEXT_DIR.mkdir(parents=True, exist_ok=True)
+TEMP_DIR.mkdir(parents=True, exist_ok=True)
+
+SUPPORTED_AUDIO_VIDEO_TYPES = {".mp3", ".wav", ".aac", ".m4a", ".mp4", ".mkv", ".mov"}
+VIDEO_TYPES = {".mp4", ".mkv", ".mov"}
+
+model = whisper.load_model("base")
+
 @router.post("/transcribe")
 async def transcribe_file(file: UploadFile = File(...)):
     ext = Path(file.filename).suffix.lower()
@@ -53,12 +76,13 @@ async def transcribe_file(file: UploadFile = File(...)):
     if transcription is None:
         raise HTTPException(status_code=500, detail="Transcription failed")
 
-    # Simpan transkrip ke file per-uid
-    transcript_file = TEXT_DIR / f"transcript_{uid}.json"
-    with open(transcript_file, 'w', encoding='utf-8') as f:
-        json.dump({"text": transcription}, f, ensure_ascii=False, indent=4)
+    summary = summarize_text(transcription)
 
-    return {"text": transcription}
+    transcript_file = TEXT_DIR / f'transcript_{uid}.json'
+    with open(transcript_file, 'w', encoding='utf-8') as f:
+        json.dump({"summary": summary}, f, ensure_ascii=False, indent=4)
+
+    return {"summary": summary}
 
 @router.get("/transcribe/latest")
 def get_latest_transcription():
