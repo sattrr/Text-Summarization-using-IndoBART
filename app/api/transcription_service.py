@@ -1,35 +1,10 @@
 from pathlib import Path
 from fastapi import APIRouter, File, UploadFile, HTTPException
-import shutil
-import uuid
-import os
-import json
-import whisper
-from app.services.speech_to_text import transcribe_audio, convert_to_wav
-from app.services.video_audio_converter import extract_audio_from_video
-
-router = APIRouter()
-
-UPLOAD_DIR = Path("data/uploads")
-TEXT_DIR = Path("data/text")
-TEMP_DIR = Path("data/temp")
-
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-TEXT_DIR.mkdir(parents=True, exist_ok=True)
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
-SUPPORTED_AUDIO_VIDEO_TYPES = {".mp3", ".wav", ".aac", ".m4a", ".mp4", ".mkv", ".mov"}
-VIDEO_TYPES = {".mp4", ".mkv", ".mov"}
-
-model = whisper.load_model("base")
-
-from pathlib import Path
-from fastapi import APIRouter, File, UploadFile, HTTPException
 import shutil, uuid, json
 import whisper
 from app.services.speech_to_text import transcribe_audio, convert_to_wav
 from app.services.video_audio_converter import extract_audio_from_video
-from app.services.summarizer import summarize_text  # ✅ import summarizer
+from app.services.summarizer import summarize_text
 
 router = APIRouter()
 
@@ -44,7 +19,7 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 SUPPORTED_AUDIO_VIDEO_TYPES = {".mp3", ".wav", ".aac", ".m4a", ".mp4", ".mkv", ".mov"}
 VIDEO_TYPES = {".mp4", ".mkv", ".mov"}
 
-model = whisper.load_model("base")
+model = whisper.load_model('base')
 
 @router.post("/transcribe")
 async def transcribe_file(file: UploadFile = File(...)):
